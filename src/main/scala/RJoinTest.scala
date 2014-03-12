@@ -12,9 +12,12 @@ object RJoinTest {
     test()  
   } 
   def test(): Unit = {  
-    val a1 = Array((111,"ass"),(222,"dcc"),(333,"rff"))
-    val b1 = Array((111,"afd"),(222,"fsd"),(333,"vfv"))
+    //val a1 = Array((111,"ass"),(222,"dcc"),(333,"rff"))
+    //val b1 = Array((111,"afd"),(222,"fsd"),(333,"vfv"))
  
+    val b1 = List((111,"ass"),(222,"dcc"),(333,"rff"),(444,"assss"),(555,"dccccc"),(666,"rfffff"),(777,"dvv"),(888,"edd"))
+    val a1 = List((222,"afd"),(444,"fsd"),(666,"vfv"),(888,"scc"),(111,"asdf"))
+    
     val sc = new SparkContext("local", "RippleJoinSample",
         System.getenv("SPARK_HOME"), Seq(System.getenv("SPARK_RIPPLEJOIN_JAR")))
     //val rdd1 = sc.parallelize(a1, 1)
@@ -50,7 +53,6 @@ object RJoinTest {
     //println(list2)
     //val list = (tableA.get(1), tableB.get(1))
     //ret.saveAsTextFile("output")
-    println(ret.toString)
     val S = new PrintWriter("test.txt")
     S.println(rdd1)
     S.println(ret.collect.mkString)
