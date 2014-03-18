@@ -15,8 +15,8 @@ object RJoinTest {
     //val a1 = Array((111,"ass"),(222,"dcc"),(333,"rff"))
     //val b1 = Array((111,"afd"),(222,"fsd"),(333,"vfv"))
  
-    val b1 = List((111,"ass"),(222,"dcc"),(333,"rff"),(444,"assss"),(555,"dccccc"),(666,"rfffff"),(777,"dvv"),(888,"edd"))
-    val a1 = List((222,"afd"),(444,"fsd"),(666,"vfv"),(888,"scc"),(111,"asdf"))
+    val b1 = List((111,121),(222,1231),(333,53453),(444,244),(555,56),(666,67),(777,78),(888,90))
+    val a1 = List((111,191),(222,16),(444,34),(666,678),(888,235))
     
     val sc = new SparkContext("local", "RippleJoinSample",
         System.getenv("SPARK_HOME"), Seq(System.getenv("SPARK_RIPPLEJOIN_JAR")))
