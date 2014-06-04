@@ -1,18 +1,16 @@
-package rjoin
-
+package mian.scala
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import SparkContext._
 import java.io.PrintWriter
 
-//import java.util.logging.Logger;
-//import org.slf4j.LoggerFactory;
-
 class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
 (sc: SparkContext, rddA: RDD[(K, V)], rddB: RDD[(K, W)]) {
 
+  val zp = 0.95
+  var epson = 0.0
   var beta1 = 1
-  var beta2 = 2
+  var beta2 = 4000
   
   var side = 2 //init side is left
   var pos1 = 0 //current cursor in table 1
@@ -37,38 +35,17 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
   var estimateCountVar1 = 0.0
   var estimateCountVar2 = 0.0
   var estimateCountVar = 0.0
-  //sum
-  var sideSum1 = 0.0
-  var sideSum2 = 0.0
-  var sum1 = 0.0
-  var sum2 = 0.0
-  var estimateSum = 0.0
-  var estimateavg1 = 0.0
-  var estimateavg2 = 0.0
-  var sideavg1 = 0.0
-  var sideavg2 = 0.0
-  var sumAvg1 = 0.0
-  var sumAvg2 = 0.0
-  var estimateSumVar1 = 0.0
-  var estimateSumVar2 = 0.0
-  var estimateSumVar = 0.0
-  //avg
-  var estimateAvg = 0.0
-  var covariance1 = 0.0
-  var covariance2 = 0.0
-  var covariance = 0.0
-  var avgVar1 = 0.0
-  var avgvar2 = 0.0
-  var avgVar = 0.0
   
   val rdd1 = rddA.toArray
   val rdd2 = rddB.toArray
-  val length1 = rdd1.length
-  val length2 = rdd2.length
+  val length1 = rdd1.length - 1
+  val length2 = rdd2.length - 1
   
   var newList: List[(K, (V, W))] = Nil//new Array[(K, (V, W))]((rdd1.length * rdd2.length).toInt)
  
   def rippleJoin(): RDD[(K,(V, W))] = {
+    val S2 = new PrintWriter("estimate.txt")
+    val begintime = System.currentTimeMillis()
     
     if(length1 > 0 && length2 > 0 ){  //init, first layer
       predict(pos1, pos2)
@@ -84,9 +61,10 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
       predictCounter += sidePredictCounter
       //countAvg2 = sidePredictCounter
       countAvg = sidePredictCounter
-      sumAvg2 = sideSum2
+      //sumAvg2 = sideSum2
     }
     while(layerfinished1 < length1 || layerfinished2 < length2){
+      //if()
       if(side == 2){
         if(layerfinished1 >= length1)  side = 1  //if this is the smaller side and finished, 
         										//only loop another side
@@ -97,12 +75,12 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
           //for estimator, clean
           sideElementCounter = 0
           sidePredictCounter = 0
-          sideSum2 = 0.0
+          //sideSum2 = 0.0
           while(pos2 < maxpos2 && !eof1 && !eof2){
             if(pos1 < length1 && pos2 < length2){
               predict(pos1, pos2)
               sideElementCounter += 1
-              println(elementCounter+"  ",side+": ",  pos1+"<="+maxpos1, pos2+"<="+maxpos2)
+              //println(elementCounter+"  ",side+": ",  pos1+"<="+maxpos1, pos2+"<="+maxpos2)
               pos2 += 1
             }else{
               eof2 = true
@@ -113,11 +91,8 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
           predictCounter += sidePredictCounter
           countAvg2 = (countAvg * maxpos1 + sidePredictCounter)/(maxpos1 + 1)
           estimateCountVar2 = (estimateCountVar2 * maxpos1 + Math.pow((sidePredictCounter - countAvg2), 2)) / (maxpos1 + 1)
-          val sideSumAvg = if(sidePredictCounter > 0) (sideSum2 * 1.0)/sidePredictCounter else 0
-          sum2 += sideSum2
-          sumAvg2 = (sumAvg2 * maxpos1 + sideSumAvg)/(maxpos1 + 1)
-          estimateSumVar2 = (estimateSumVar2 * maxpos1 + Math.pow((sideSumAvg - sumAvg2), 2)) / (maxpos1 + 1)
-          covariance2 = (covariance2 * maxpos1 + (sideSumAvg - sumAvg2) * (sidePredictCounter - countAvg2)) / (maxpos1 + 1)
+          //val sideSumAvg = if(sidePredictCounter > 0) (sideSum2 * 1.0)/sidePredictCounter else 0
+          //sum2 += sideSum2
           
           pos1 += 1
           maxpos1 += 1
@@ -129,21 +104,11 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
         //for estimator, compute final estimate 
         estimateCountVar = estimateCountVar1 / (layerfinished2 * beta1) +
                            estimateCountVar2 / (layerfinished1 * beta2)
-        estimateSumVar = estimateSumVar1 / (layerfinished2 * beta1) + 
-                         estimateSumVar2 / (layerfinished1 * beta2)
-        covariance = covariance1 / (layerfinished2 * beta1) +
-                     covariance2 / (layerfinished1 * beta2)
-        if(count() > 0)
-          avgVar = (estimateSumVar - 2 * (sum() * 1.0 / count()) * covariance + Math.pow((sum() * 1.0 / count()), 2) * estimateCountVar) / 
-                   Math.pow(count(), 2)
-                    
-        println("count: " + count() + "countVar: " + estimateCountVar)
-        println(estimateSumVar1, estimateSumVar2)
-        println("sum: " + sum() + "sumVar: " + estimateSumVar)
-        println("avg: " + avg() + "avgVar: " + avgVar)
-                     
+        
         curstep += 1
         side = 1
+        val currentTime = System.currentTimeMillis() - begintime
+        S2.println("COUNT: "+ countAvg + "Interval: " + countEpson() + "Time: " + currentTime)
       } else{
         if(layerfinished2 >= length2)  side = 2  //if this is the smaller side and finished, 
         										//only loop another side
@@ -154,13 +119,13 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
           //for estimator, clean
           sideElementCounter = 0
           sidePredictCounter = 0
-          sideSum1 = 0.0
+          //sideSum1 = 0.0
           
           while(pos1 < maxpos1 && !eof1 && !eof2){
             if(pos1 <= length1 && pos2 <= length2){
               predict(pos1, pos2)
               elementCounter += 1
-              println(elementCounter+"  ",side+": ", pos1+"<="+maxpos1, pos2+"<="+maxpos2)
+              //println(elementCounter+"  ",side+": ", pos1+"<="+maxpos1, pos2+"<="+maxpos2)
               pos1 += 1
               //println(newList)
             }else{
@@ -172,11 +137,8 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
           predictCounter += sidePredictCounter
           countAvg1 = (countAvg * maxpos2 + sidePredictCounter)/(maxpos2 + 1)
           estimateCountVar1 = (estimateCountVar1 * maxpos2 + Math.pow((sidePredictCounter - countAvg1), 2)) / (maxpos2 + 1)
-          val sideSumAvg = if(sidePredictCounter > 0) (sideSum1 * 1.0)/sidePredictCounter else 0
-          sum1 += sideSum1
-          sumAvg1 = (sumAvg1 * maxpos2 + sideSumAvg)/(maxpos2 + 1)
-          estimateSumVar1 += (estimateSumVar1 * maxpos2 + Math.pow((sideSumAvg - sumAvg1), 2)) / (maxpos2 + 1)
-          covariance1 = (covariance1 * maxpos2 + (sideSumAvg - sumAvg1) * (sidePredictCounter - countAvg1)) / (maxpos2 + 1)
+          //val sideSumAvg = if(sidePredictCounter > 0) (sideSum1 * 1.0)/sidePredictCounter else 0
+          //sum1 += sideSum1
           
           pos2 += 1
           maxpos2 += 1
@@ -193,6 +155,7 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
     curstep = 1;
     side = 2 
   
+    S2.close()
     sc.makeRDD(newList)
   }
   
@@ -203,14 +166,6 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
               newList = (rdd1(pos1)._1, (r1, r2)) :: newList
               //for estimator
               sidePredictCounter += 1
-              if(r1.isInstanceOf[Double] && r2.isInstanceOf[Double])
-                updateSideSum(r1.asInstanceOf[Double], r2.asInstanceOf[Double])
-                else if(r1.isInstanceOf[Int] && r2.isInstanceOf[Int])
-                  updateSideSum(r1.asInstanceOf[Int], r2.asInstanceOf[Int])
-                  else if(r1.isInstanceOf[Long] && r2.isInstanceOf[Long])
-                    updateSideSum(r1.asInstanceOf[Long], r2.asInstanceOf[Long])
-
-              println(newList)
     }
   }
   //some util function
@@ -243,24 +198,28 @@ class RJoin[K: ClassManifest, V: ClassManifest, W: ClassManifest]
   }
   
   def countVar(): Double ={
-    val ret = 0.0
+    val ret = estimateCountVar1/beta1 + estimateCountVar2/beta2
     ret
   }
   
-  def updateSideSum(r1: Double, r2: Double){
-      if(side == 2)
-        sideSum2 += r1 + r2
-        else
-          sideSum1 += r1 + r2
+  def countEpson(): Double ={
+    zp * estimateCountVar / Math.sqrt(elementCounter)
   }
-  def sum():Double ={
-    val ret = ((length1 * length2  * 1.0)/ elementCounter) * (sum1 + sum2)
-    ret
-  }
-  def avg():Double={
-    if(count()>0)
-      sum()/count()
-      else
-        0.0
-  }
+  
+  //def updateSideSum(r1: Double, r2: Double){
+  //    if(side == 2)
+  //      sideSum2 += r1 + r2
+  //      else
+  //        sideSum1 += r1 + r2
+  //}
+  //def sum():Double ={
+  //  val ret = ((length1 * length2  * 1.0)/ elementCounter) * (sum1 + sum2)
+  // ret
+  //}
+  //def avg():Double={
+  //  if(count()>0)
+  //    sum()/count()
+  //    else
+  //      0.0
+  //}
 }
