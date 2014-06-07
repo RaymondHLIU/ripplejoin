@@ -9,26 +9,26 @@ object RTest extends App {
   val sc = new SparkContext("local", "RippleJoinSample",
         System.getenv("SPARK_HOME"), Seq(System.getenv("SPARK_RIPPLEJOIN_JAR")))
   
-  val RDDSIZE1 = 10000
+  val RDDSIZE1 = 100000
   val rdd1 = sc.parallelize(0 until 1, 1).flatMap { p =>
       val ranGen = new Random
       var result = List[(Long, Long)]()
       var i: Long = 0
       while (i < RDDSIZE1) {
-         result = ((i%(ranGen.nextInt(1000)+1).asInstanceOf[Long]), ranGen.nextInt(10).asInstanceOf[Long]) :: result
+         result = ((ranGen.nextInt(100).asInstanceOf[Long]), ranGen.nextInt(10).asInstanceOf[Long]) :: result
           i += 1
           //println(result.toString)
       }
       result
     }
-  val RDDSIZE2: Long = 1000
+  val RDDSIZE2: Long = 10000
   println(RDDSIZE2)
   val rdd2 = sc.parallelize(0 until 1, 1).flatMap { p =>
     val ranGen = new Random
     var result = List[(Long, Long)]()
     var i :Long = 0
     while (i < RDDSIZE2) {
-          result = ((i%(ranGen.nextInt(100)+1).asInstanceOf[Long]), ranGen.nextInt(10).asInstanceOf[Long]) :: result
+          result = ((ranGen.nextInt(100).asInstanceOf[Long]), ranGen.nextInt(10).asInstanceOf[Long]) :: result
           i += 1
       }
     result
@@ -51,12 +51,14 @@ object RTest extends App {
   val rddB = rdd2.persist
   
   val begintime = System.currentTimeMillis()
-  //val ripple = new SimpleJoin(sc, rddA, rddB)
-  val ripple = new Join(sc, rddA, rddB)
+  //val ripple = new Join(sc, rddA, rddB)
+  val ripple = new RippleJoin(sc, rddA, rddB)
   val endtime=System.currentTimeMillis()
   val costTime = (endtime - begintime)
   val S = new PrintWriter("test.txt")
-  S.println("COUNT: " + ripple.approxCount)
+  S.println("COUNT: " + ripple.estimator.approxCount)
+  S.println("SUM: " + ripple.sumer.approxSum)
+  S.println("AVG: " + ripple.avger.approxAvg)
   S.println("Join Time: " + costTime)
   S.close()
   //val ret = ripple.rippleJoin
